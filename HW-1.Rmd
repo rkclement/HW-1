@@ -151,7 +151,7 @@ as.data.frame(uniqDestinations)
 uniqDestinations$state <- factor(uniqDestinations$state, levels = uniqDestinations$state)
 
 g <- ggplot(filter(uniqDestinations, !is.na(state)), aes(x = state, y = n))
-g + geom_bar(stat="identity") + coord_flip() + labs(title = "States to which Listed Southwest Flights Tend to Fly")
+g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which Listed Southwest Flights Tend to Fly")
 
 # Next join all flights table, not just listed ones, and graph.  
 allSW <- swFlights %>% 
@@ -170,11 +170,9 @@ as.data.frame(allDestinations)
 allDestinations$state <- factor(allDestinations$state, levels = allDestinations$state)
 
 g <- ggplot(filter(allDestinations, !is.na(state)), aes(x = state, y = n))
-g + geom_bar(stat="identity") + coord_flip() + labs(title = "States to which All Southwest Flights Tend to Fly")
+g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which All Southwest Flights Tend to Fly")
 
 ```
-
-
 
 
 
