@@ -1,31 +1,31 @@
----
+ca---
 title: "MATH 216 Homework 1"
-author: "WRITE YOUR NAME HERE"
+author: "Ryan Clement"
 output: html_document
 ---
 
-```{r, echo=FALSE, message=FALSE, cache=TRUE}
+```{r, echo=FALSE, message=FALSE}
 # DO NOT EDIT THIS SECTION
-
 # Load packages
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
-
+```
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
 # the .csv files.
 flights <- read.csv("data/flights.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df() %>%
-  mutate(date=as.Date(date))
+ tbl_df() %>%
+ mutate(date=as.Date(date))
 weather <- read.csv("data/weather.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df() %>%
-  mutate(date=as.Date(date))
+ tbl_df() %>%
+ mutate(date=as.Date(date))
 planes <- read.csv("data/planes.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 airports <- read.csv("data/airports.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 ```
 
 
@@ -36,10 +36,14 @@ states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>%
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
-* Any comments you have:
+* Who you collaborated with: 
+*no one*
+* Roughly how much time you spent on this HW: 
+*3 hours? It was spread out in little chunks over the whole week...*
+* What gave you the most trouble: 
+*Trying to answer Question 2 graphically and get the graph to a point where I could interpret it properly.* 
+* Any comments you have: 
+*Some things weren't clear and could have been included in a "codebook" (e.g. I didn't realize all the flights were taking off from Houston, so I spent a lot of time puzzling over how to filter for the flights from Houston in the last question.)*
 
 
 
@@ -52,27 +56,69 @@ Please indicate
     + the y-axis should be the proportion.
 * Which seasons did we tend to see the most and least delays of > 30 minutes.
 
+
+*It appears that, outliers aside, the season with the most flights delayed > 30 minutes was summer (July/August), and the season with the least flights delayed > 30 minutes was late fall (October/November).*
+
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+# First we get the # of flights per day. 
+flights_perDay <- flights %>% 
+  group_by(date) %>% 
+  tally() %>% 
+  rename(flights_per_day = n)
 
+# Next we get the # of flights per day that were delayed  by >30 minutes.
+flightsDelay_perDay <- flights %>%
+  filter(dep_delay > 30) %>%
+  group_by(date) %>% 
+  tally() %>% 
+  rename(delayed_per_day = n)
+
+# Next we join these two in order to get the proportion per day.
+flightsDelay_perDay <- left_join(flightsDelay_perDay, flights_perDay, by = "date") %>% 
+  mutate(prop_delay = round(delayed_per_day/flights_per_day, 3))
+
+g <- ggplot(data = flightsDelay_perDay, aes(x = date, y = prop_delay))
+g + geom_point() + 
+  labs(title = "Proportion of Flights Delayed More Than 30 Minutes", 
+                        x     = "Date", 
+                        y     = "Proportion Delayed")
 ```
-
-
-
-
 
 ## Question 2:
 
 Some people prefer flying on older planes.  Even though they aren't as nice,
 they tend to have more room.  Which airlines should these people favor?
 
+*From looking at our histogram, it appears American Airlines (AA) has very few planes built after the mid-1990's, and would be a great choice for our hypothetical flyers. Delta (DL) may also be acceptable, as they have a good number of older planes, but they also have many planes built after 2000 as well. Finally, Envoy Air (MQ) would also be a good choice, but they don't have a large fleet (or number of flights). Note that we removed planes where year of manufacture was missing.* 
+
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+# First, we find the the planes flown by each carrier.
+fleet <- flights %>%
+  select(carrier, plane) %>%
+  group_by(carrier, plane) %>%
+  summarise()
 
+# We join the table of planes flown by each carrier to the year of each plane from the planes table.
+fleet <- planes %>% 
+  select(plane, year) %>%
+  left_join(fleet, ., by = "plane")
+
+# We plot the distribution of each carrier's fleet by plane manufacture year. Note that we remove planes 
+# where year data is missing. We separate the histograms into separate facets to make differences clearer.
+
+suppressPackageStartupMessages(library(RColorBrewer))
+
+colourCount = length(unique(fleet$carrier))
+
+g <- ggplot(data = filter(fleet, !is.na(year)), aes(x = year, fill = carrier))
+g + geom_histogram(binwidth = 1) + 
+  facet_wrap(~carrier) + 
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(colourCount)) + 
+  theme_dark() + 
+  labs(title = "Distribution of Airline Fleet Ages", 
+       x     = "Year of Plane Manufacture", 
+       fill  = "Airline")    
 ```
-
-
-
-
-
 
 
 ## Question 3:
@@ -80,8 +126,51 @@ they tend to have more room.  Which airlines should these people favor?
 * What states did listed Southwest Airlines flights tend to fly to?
 * What states did all Southwest Airlines flights tend to fly to?
 
+*It appears, from the tables and bar charts below, that, at least for the top 10, the states that listed SW Airlines flights tend to fly to are the same as the states all SW Airlines flights tend to fly to.*
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+# First, filter for only Southwest Airlines flights (WN).
+swFlights <- filter(flights, carrier == "WN")
+
+# Next filter for only listed flights. 
+uniqueSW <- swFlights %>% 
+  group_by(flight,dest) %>%
+  summarise()
+
+# Next join this to the airports table, with only the iata and state columns.
+# Tally the flights to each state, and then arrange the table in order. 
+uniqDestinations <- airports %>% 
+  select(iata,state) %>%
+  left_join(uniqueSW, ., by = c("dest" = "iata")) %>%
+  group_by(state) %>%
+  tally () %>%
+  arrange(n)
+
+as.data.frame(uniqDestinations)
+
+uniqDestinations$state <- factor(uniqDestinations$state, levels = uniqDestinations$state)
+
+g <- ggplot(filter(uniqDestinations, !is.na(state)), aes(x = state, y = n))
+g + geom_bar(stat="identity") + coord_flip() + labs(title = "States to which Listed Southwest Flights Tend to Fly")
+
+# Next join all flights table, not just listed ones, and graph.  
+allSW <- swFlights %>% 
+  group_by(dest) %>%
+  tally() 
+
+allDestinations <- airports %>% 
+  select(iata,state) %>%
+  left_join(allSW, ., by = c("dest" = "iata")) %>%
+  group_by(state) %>%
+  tally () %>%
+  arrange(n)
+
+as.data.frame(allDestinations)
+
+allDestinations$state <- factor(allDestinations$state, levels = allDestinations$state)
+
+g <- ggplot(filter(allDestinations, !is.na(state)), aes(x = state, y = n))
+g + geom_bar(stat="identity") + coord_flip() + labs(title = "States to which All Southwest Flights Tend to Fly")
 
 ```
 
@@ -93,13 +182,24 @@ they tend to have more room.  Which airlines should these people favor?
 
 What weather patterns are associated with the biggest departure delays?
 
+*Fog-Rain and Rain-Thunderstorm are the weather patterns associated with the biggest departure delays, by far.*
+
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+# Create a table of weather patterns and date/hours. 
+weather_patterns <- weather %>%
+  select(date, hour, events) 
 
+# Join this table with the flights table (the date, hour, and dep_delay columns).
+delay_weather <- flights %>%
+  select(date, hour, dep_delay) %>%
+  left_join(., weather_patterns, by=c("date", "hour"))
+
+delay_weather %>%
+  filter(!is.na(events)) %>% 
+  group_by(events) %>%
+  summarise(median_departure_delay = median(dep_delay)) %>%
+  arrange(desc(median_departure_delay))
 ```
-
-
-
-
 
 ## Question 5:
 
@@ -107,6 +207,36 @@ I want to know what proportionately regions (NE, south, west, midwest) each
 carrier flies to from Houston in the month of July.  Consider the `month()`
 function from the `lubridate` package.
 
-```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+*See chart of proportions below.*
 
+```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+# First isolate only the flights in July, and join this to the table of airports (to get states)
+# and states (to get regions) and select only the columns we need.
+july_flights <- flights %>%
+  mutate(month = month(date)) %>%
+  filter(month == 7) %>%
+  left_join(., airports, by = c("dest" = "iata")) %>%
+  left_join(., states, by = "state") %>%
+  select(month, carrier, state, region)
+
+# Compute a table of total flights per carrier for July.
+totalFlights_carrier <- july_flights %>%
+  group_by(carrier) %>%
+  tally() %>%
+  rename(total_flights = n)
+
+# Compute a table of flights per region per carrier for July.
+flightsPerRegion_carrier <- july_flights %>%
+  group_by(carrier, region) %>%
+  tally() %>%
+  rename(flights_perRegion = n)
+
+# Use those table to compute the proportion of flights per region per carrier for July.
+prop_flightsPerRegion <- flightsPerRegion_carrier %>%
+  left_join(., totalFlights_carrier, by = "carrier") %>%
+  mutate(proportionFlights = flights_perRegion/total_flights) %>% 
+  select(carrier, region, proportionFlights) %>%
+  arrange(carrier, desc(proportionFlights))
+
+as.data.frame(prop_flightsPerRegion)
 ```
