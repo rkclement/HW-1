@@ -10,6 +10,9 @@ output: html_document
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(RColorBrewer))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(DT))
 ```
 ```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
@@ -81,7 +84,8 @@ g <- ggplot(data = flightsDelay_perDay, aes(x = date, y = prop_delay))
 g + geom_point() + 
   labs(title = "Proportion of Flights Delayed More Than 30 Minutes", 
                         x     = "Date", 
-                        y     = "Proportion Delayed")
+                        y     = "Proportion Delayed") + 
+  stat_smooth()
 ```
 
 ## Question 2:
@@ -144,14 +148,15 @@ uniqDestinations <- airports %>%
   left_join(uniqueSW, ., by = c("dest" = "iata")) %>%
   group_by(state) %>%
   tally () %>%
-  arrange(n)
+  rename(SW_flights = n) %>%
+  arrange(SW_flights)
 
-as.data.frame(uniqDestinations)
+kable(arrange(uniqDestinations, desc(SW_flights)))
 
 uniqDestinations$state <- factor(uniqDestinations$state, levels = uniqDestinations$state)
 
-g <- ggplot(filter(uniqDestinations, !is.na(state)), aes(x = state, y = n))
-g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which Listed Southwest Flights Tend to Fly")
+g <- ggplot(filter(uniqDestinations, !is.na(state)), aes(x = state, y = SW_flights))
+g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which Listed Southwest Flights Tend to Fly", x = "State", y = "Southwest Flights")
 
 # Next join all flights table, not just listed ones, and graph.  
 allSW <- swFlights %>% 
@@ -163,14 +168,15 @@ allDestinations <- airports %>%
   left_join(allSW, ., by = c("dest" = "iata")) %>%
   group_by(state) %>%
   tally () %>%
-  arrange(n)
+  rename(SW_flights = n) %>%
+  arrange(SW_flights)
 
-as.data.frame(allDestinations)
+datatable(arrange(allDestinations, desc(SW_flights)))
 
 allDestinations$state <- factor(allDestinations$state, levels = allDestinations$state)
 
-g <- ggplot(filter(allDestinations, !is.na(state)), aes(x = state, y = n))
-g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which All Southwest Flights Tend to Fly")
+g <- ggplot(filter(allDestinations, !is.na(state)), aes(x = state, y = SW_flights))
+g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which All Southwest Flights Tend to Fly", x = "State", y = "Southwest Flights")
 
 ```
 
@@ -180,7 +186,7 @@ g + geom_bar(stat = "identity") + coord_flip() + labs(title = "States to which A
 
 What weather patterns are associated with the biggest departure delays?
 
-*Fog-Rain and Rain-Thunderstorm are the weather patterns associated with the biggest departure delays, by far.*
+*Fog-Rain and Rain-Thunderstorm are the weather patterns associated with the highest median departure delays, but there is a large amount of variability in these delay times. See the table and chart below.*
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
 # Create a table of weather patterns and date/hours. 
@@ -192,11 +198,17 @@ delay_weather <- flights %>%
   select(date, hour, dep_delay) %>%
   left_join(., weather_patterns, by=c("date", "hour"))
 
+delay_weather$events[delay_weather$events == ""] <- NA
+    
 delay_weather %>%
   filter(!is.na(events)) %>% 
   group_by(events) %>%
   summarise(median_departure_delay = median(dep_delay)) %>%
-  arrange(desc(median_departure_delay))
+  arrange(desc(median_departure_delay)) %>%
+  datatable()
+
+g <- ggplot(delay_weather, aes(events, dep_delay, color = events))
+g + geom_boxplot() + coord_cartesian(ylim = quantile(delay_weather$dep_delay, c(.05, .99), na.rm = TRUE)) + theme(legend.position = "none")
 ```
 
 ## Question 5:
@@ -205,7 +217,7 @@ I want to know what proportionately regions (NE, south, west, midwest) each
 carrier flies to from Houston in the month of July.  Consider the `month()`
 function from the `lubridate` package.
 
-*See chart of proportions below.*
+*See graph and table of proportions below. Note that we did not include flights whose destination region was not available in our analysis.*
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
 # First isolate only the flights in July, and join this to the table of airports (to get states)
@@ -232,9 +244,12 @@ flightsPerRegion_carrier <- july_flights %>%
 # Use those table to compute the proportion of flights per region per carrier for July.
 prop_flightsPerRegion <- flightsPerRegion_carrier %>%
   left_join(., totalFlights_carrier, by = "carrier") %>%
-  mutate(proportionFlights = flights_perRegion/total_flights) %>% 
+  mutate(proportionFlights = round(flights_perRegion/total_flights, 3)) %>% 
   select(carrier, region, proportionFlights) %>%
-  arrange(carrier, desc(proportionFlights))
+  filter(!is.na(region))
 
-as.data.frame(prop_flightsPerRegion)
+datatable(arrange(prop_flightsPerRegion, carrier, desc(proportionFlights)))
+
+g <- ggplot(prop_flightsPerRegion, aes(carrier, proportionFlights, fill = region))
+g + geom_bar(stat = "identity", position = "fill")
 ```
