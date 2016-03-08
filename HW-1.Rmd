@@ -207,7 +207,7 @@ delay_weather %>%
   arrange(desc(median_departure_delay)) %>%
   datatable()
 
-g <- ggplot(delay_weather, aes(events, dep_delay, color = events))
+g <- ggplot(filter(delay_weather, !is.na(events)), aes(events, dep_delay, color = events))
 g + geom_boxplot() + coord_cartesian(ylim = quantile(delay_weather$dep_delay, c(.05, .99), na.rm = TRUE)) + theme(legend.position = "none")
 ```
 
